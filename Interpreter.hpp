@@ -1,0 +1,31 @@
+#ifndef INTERPRETER_HPP
+#define INTERPRETER_HPP
+
+#include "BrainFuck.hpp"
+#include <stack>
+
+class Interpreter
+{
+private:
+        BrainFuck bf{};
+
+        std::string program{};                     // Program buffer, load program here
+        std::vector<size_t> bracketMatchingDict{}; // For matching the opening and closing brackets
+
+public:
+        Interpreter(const std::string &filename);
+        /*
+        @brief Load program into string buffer
+        */
+        void loadProgram(const std::string &file);
+        /*
+        @brief Map the idx of opening bracket to closing bracket
+        Precomputes the map before interpretation
+         */
+        void bracketMatch(void);
+        /*
+        @brief Token consuming function
+         */
+        void eatChars(void);
+};
+#endif /* INTERPRETER_HPP */
