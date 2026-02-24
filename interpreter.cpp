@@ -1,120 +1,98 @@
-#include <iostream>
-#include <vector>
-#include <cstdint>
-#include <string>
-#include <fstream>
-#include <algorithm>
+#include "Interpreter.hpp"
 
-class BrainFuck
+Interpreter::Interpreter(const std::string &filename)
 {
-private:
-        std::vector<std::uint8_t> buffer{};
-        size_t pointerHead{};
+        loadProgram(filename);
+        bracketMatch();
+}
 
-public:
-        BrainFuck()
+void Interpreter::loadProgram(const std::string &filename)
+{
+        std::ifstream fileObj{filename}; /* Naming confusion, don't fucking use file as the object identifier */
+        if (!fileObj)
         {
-                buffer.push_back(0);
+                throw std::runtime_error("Interpreter Error: Error opening file");
         }
-        void moveRight(void);
-        void moveLeft(void);
-        std::uint8_t read(void) const;
-        void write(uint8_t value);
-        void increment(void);
-        void decrement(void);
-};
+        program.assign(std::istreambuf_iterator<char>{fileObj}, std::istreambuf_iterator<char>{});
 
-void BrainFuck::moveRight(void)
-{
-        pointerHead++;
-        if (pointerHead >= buffer.size())
+        /* Whitespace and trailing spaces erasure*/
+        std::string clearedProgram{};
+        for (char ch : program)
         {
-                buffer.push_back(0);
-        }
-}
-
-void BrainFuck::moveLeft(void)
-{
-        if (pointerHead == 0)
-        {
-                throw std::out_of_range("BrainFuck Error: Trying to move pointer head to negative index");
-        }
-        pointerHead--;
-}
-
-std::uint8_t BrainFuck::read() const
-{
-        return buffer[pointerHead];
-}
-
-void BrainFuck::write(std::uint8_t value)
-{
-        buffer[pointerHead] = value;
-}
-
-void BrainFuck::increment()
-{
-        buffer[pointerHead]++;
-}
-
-void BrainFuck::decrement()
-{
-        buffer[pointerHead]--;
-}
-
-class Interpreter
-{
-private:
-        std::ifstream file{};
-
-public:
-        BrainFuck bf{};
-        Interpreter(const std::string &filename) : file{filename}
-        {
-                if (!file.is_open())
+                if (ch == '>' || ch == '<' || ch == '+' || ch == '-' || ch == '.' || ch == ',' || ch == '[' || ch == ']')
                 {
-                        throw std::runtime_error("File Error: Error opening file");
+                        clearedProgram += ch;
                 }
         }
-        void eatChars(void)
-        {
-                std::string program{
-                    std::istreambuf_iterator<char>{file},
-                    std::istreambuf_iterator<char>{}};
-                /*Begin and END iterators */
+        program = std::move(clearedProgram);
+}
 
-                for (size_t ip{}; ip < program.size(); ip++)
+void Interpreter::bracketMatch()
+{
+        bracketMatchingDict.resize(program.size());
+        std::stack<size_t> stack{};
+
+        for (size_t i = 0; i < program.size(); ++i)
+        {
+                if (program[i] == '[')
                 {
-                        switch (program[ip])
+                        stack.push(i); // We are storing location using push, not the value
+                }
+                else if (program[i] == ']')
+                {
+                        if (stack.empty())
                         {
-                        case '>':
-                                bf.moveRight();
-                                break;
-                        case '<':
-                                bf.moveLeft();
-                                break;
-                        case '+':
-                                bf.increment();
-                                break;
-                        case '-':
-                                bf.decrement();
-                                break;
-                        case '.':
-                                std::cout << (char)bf.read(); /* Write to output*/
-                                break;
-                        case ',':
-                                char input{};
-                                std::cin.get(input); /* Read from input */
-                                bf.write(input);
-                                break;
-                        default:
-                                break;
+                                throw std::out_of_range("Matching bracket not found");
                         }
+                        auto match = stack.top();
+                        stack.pop();
+                        bracketMatchingDict[match] = i;
+                        bracketMatchingDict[i] = match;
+                        // Could have done this efficiently with legit dictionaries, but this is faster
                 }
         }
-};
+        // If still not emptied, we are in trouble
+        if (!stack.empty())
+        {
+                throw std::out_of_range("Matching bracket not found");
+        }
+}
 
-int main(int argc, char **argv)
+void Interpreter::eatChars(void)
 {
-        //
+        size_t tok_idx{};
+        while (tok_idx < program.size())
+        {
+                switch (program[tok_idx])
+                {
+                case '>':
+                        bf.moveRight();
+                        break;
+                case '<':
+                        bf.moveLeft();
+                        break;
+                case '+':
+                        bf.increment();
+                        break;
+                case '-':
+                        bf.decrement();
+                        break;
+                case '.':
+                        std::cout << (char)bf.read(); /* Write to output*/
+                        break;
+                case ',':
+                        char input{};
+                        std::cin.get(input); /* Read from input */
+                        bf.write((uint8_t)input);
+                        break;
+                case '[':
+                        tok_idx = bracketMatchingDict[tok_idx];
+                        break;
+                case ']':
+                        tok_idx = bracketMatchingDict[tok_idx];
+                default:
+                        break;
+                }
+                ++tok_idx;
+        }
 }
