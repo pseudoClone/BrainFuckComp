@@ -83,8 +83,14 @@ void Interpreter::execute(void)
                 case ',':
                 {
                         char input{};
-                        std::cin.get(input); /* Read from input */
-                        bf.write((uint8_t)input);
+                        if (!std::cin.get(input))
+                        {
+                                bf.write(0);
+                        } /* Read from input */
+                        else
+                        {
+                                bf.write((uint8_t)input);
+                        }
                         break;
                 }
                 case '[':
