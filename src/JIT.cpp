@@ -92,3 +92,8 @@ void JIT::parse(const std::string &src)
                 }
         }
 }
+
+void JIT::optimize(void)
+{
+        std::vector<IR_MNEMONIC> out{};
+}
