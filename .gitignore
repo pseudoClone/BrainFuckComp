@@ -1,2 +1,4 @@
 MentalNotes
 .vscode/
+deps/lib
+deps/share

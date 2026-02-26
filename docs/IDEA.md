@@ -9,3 +9,7 @@ So, I thought why not make it in BrainFuck. I mean the language is simple. I can
 Then, I thought, no of my ideas are original. And low and behold, my favourite Youtube Video Creator, Tsoding had made one. Hell, there were like blog posts(with 2 parts) making one.
 
 Nevertheless, I thought, fuck it, I am making one.
+
+
+## 26th February, 2026
+Yesterday I was looking into GNU Lightning. It's simple. It's lightweight and give me machine instructions and supports x86-64 by default. So, why the hell not. I suck at anything that is in LLVM level. Hats off to Chris Lattner but what the fuck bro. So, may as well look into something that is small, does the job. And no optimization layer, I'll do that part.
