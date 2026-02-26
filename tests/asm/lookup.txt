@@ -1,0 +1,13 @@
+Disassembly of section .text:
+
+0000000000000000 <.text>:
+   0:   55                      push   %rbp
+   1:   48 89 e5                mov    %rsp,%rbp
+   4:   53                      push   %rbx
+   5:   56                      push   %rsi
+   6:   57                      push   %rdi
+   7:   48 ff c7                inc    %rdi
+   a:   48 ff cf                dec    %rdi
+   d:   fe 07                   incb   (%rdi)
+   f:   fe 0f                   decb   (%rdi)
+  11:   80 3f 00                cmpb   $0x0,(%rdi)
