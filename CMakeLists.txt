@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(include)
 
-add_executable(bf_interpreter 
+add_executable(zerofucks 
         src/Interpreter.cpp
         src/BrainFuck.cpp
         src/JIT.cpp
