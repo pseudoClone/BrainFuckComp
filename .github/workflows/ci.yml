@@ -1,0 +1,33 @@
+name: CI Build Stuff
+on:
+  push:
+    branches: [main, JIT]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4 # Downloading the source into the CI VM
+
+    - name: Install Dependencies
+      run: sudo apt-get update && sudo apt-get install -y cmake build-essential
+
+    - name: Configure Cmake
+      run: cmake -S . -B build # -S flag to denote the source directory
+
+    - name: Build
+      run: cmake --build build
+    
+    - name: Test Interpreter
+      run: |
+        ./build/zerofucks tests/cases/hello.bf > result.txt
+        if ! grep -q "Hello World!" result.txt; then
+          echo "Test Failed"
+          exit 1
+        else
+          echo "Test Passed"
+        fi
