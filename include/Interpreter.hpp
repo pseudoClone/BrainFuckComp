@@ -9,6 +9,8 @@
 #include <fstream>
 #include <algorithm>
 #include <stack>
+#include "JIT.hpp"
+#include <optional>
 
 class Interpreter
 {
@@ -17,6 +19,12 @@ private:
 
         std::string program{};                     // Program buffer, load program here
         std::vector<size_t> bracketMatchingDict{}; // For matching the opening and closing brackets
+
+        std::optional<JIT> jit{};
+        bool useJIT{};
+
+        void executeInterpreted(void);
+        void executeJIT(void);
 
 public:
         Interpreter(const std::string &filename);
@@ -33,5 +41,9 @@ public:
         @brief Token consuming function
          */
         void execute(void);
+        inline void enableJIT()
+        {
+                useJIT = true;
+        }
 };
 #endif /* INTERPRETER_HPP */

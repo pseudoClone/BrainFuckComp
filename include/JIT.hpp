@@ -32,6 +32,7 @@ private:
         std::vector<IR_MNEMONIC> ir; // Store program to corresponding mnemonic
 
 public:
+        JIT() = default;
         void parse(const std::string &src);
         void optimize(void);
         void *emit(void);

@@ -46,6 +46,13 @@ public:
         @brief Handle cell value decrement keyword token
          */
         void decrement(void);
+
+        std::vector<std::uint8_t> &getBuffer() { return buffer; }
+        const std::vector<std::uint8_t> &getBuffer() const { return buffer; }
+        size_t getPointerHead() const { return pointerHead; }
+        void setPointerHead(size_t pos) { pointerHead = pos; }
+        std::uint8_t *data() { return buffer.data(); }
+        const std::uint8_t *data() const { return buffer.data(); }
 };
 
 #endif /* BRAINFUCK_HPP */

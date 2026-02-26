@@ -1,4 +1,5 @@
 #include "Interpreter.hpp"
+#include <sys/mman.h> /*This is for mmap. Fucking awesome function */
 
 Interpreter::Interpreter(const std::string &filename)
 {
@@ -60,6 +61,14 @@ void Interpreter::bracketMatch()
 
 void Interpreter::execute(void)
 {
+        if (useJIT)
+                executeJIT();
+        else
+                executeInterpreted();
+}
+
+void Interpreter::executeInterpreted(void)
+{
         size_t tok_idx{};
         while (tok_idx < program.size())
         {
@@ -112,4 +121,35 @@ void Interpreter::execute(void)
                 }
                 ++tok_idx;
         }
+}
+void Interpreter::executeJIT(void)
+{
+        jit.emplace();
+        jit->parse(program);
+        jit->optimize();
+
+        void *func = jit->emit();
+        if (!func)
+        {
+                executeInterpreted();
+                return;
+        }
+
+        auto &tape = bf.getBuffer();
+        if (tape.size() < 30000)
+        {
+                tape.resize(30000);
+        }
+
+        using JitFunc = void (*)(uint8_t *, uint8_t *);
+        auto jitted = reinterpret_cast<JitFunc>(func);
+
+        uint8_t *tape_base = bf.data();
+        uint8_t *data_ptr = tape_base + bf.getPointerHead();
+
+        jitted(tape_base, data_ptr);
+
+        bf.setPointerHead(data_ptr - tape_base);
+
+        munmap(func, 4096);
 }
