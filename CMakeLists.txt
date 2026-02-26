@@ -13,4 +13,4 @@ add_executable(bf_interpreter
         src/Runner.cpp
 )
 
-target_link_libraries(bf_interpreter PRIVATE dl)
+target_link_libraries(zerofucks PRIVATE dl)
