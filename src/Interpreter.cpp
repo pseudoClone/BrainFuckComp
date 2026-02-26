@@ -124,7 +124,12 @@ void Interpreter::executeInterpreted(void)
 }
 void Interpreter::executeJIT(void)
 {
-        jit.emplace();
+        if (program.find('[') != std::string::npos)
+        {
+                executeInterpreted();
+                return;
+        }
+        jit.emplace(); // No program here, overload BTW
         jit->parse(program);
         jit->optimize();
 

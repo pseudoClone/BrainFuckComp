@@ -89,8 +89,8 @@ void JIT::parse(const std::string &src)
                 }
                 else if (op == JIT::BF_OPERATION::OP_JZ || op == JIT::BF_OPERATION::OP_JNZ)
                 {
-                        ir.push_back({op, bracketMatch[i]}); // Find the precomputed bracketMatch and put it in ir
-                        ++i;
+                        ++i; // Fuck optimization, jump bracket computation is optimized enough
+                        continue;
                 }
                 else
                 {
@@ -129,8 +129,7 @@ void JIT::optimize()
 void *JIT::emit()
 {
         std::vector<uint8_t> code;
-        std::unordered_map<size_t, size_t> irIdxToCodeOffset;
-        std::vector<std::tuple<size_t, size_t, size_t>> jumpPatches;
+        std::unordered_map<size_t, size_t> srcIdxToCodeOffset;
 
         code.insert(code.end(), {0x55, 0x48, 0x89, 0xe5});
         code.insert(code.end(), {0x53, 0x56, 0x57});
@@ -138,10 +137,32 @@ void *JIT::emit()
         void *putchar_addr = dlsym(RTLD_DEFAULT, "putchar");
         void *getchar_addr = dlsym(RTLD_DEFAULT, "getchar");
 
+        size_t src_idx = 0;
         for (size_t ir_idx = 0; ir_idx < ir.size(); ++ir_idx)
         {
                 auto &instr = ir[ir_idx];
-                irIdxToCodeOffset[ir_idx] = code.size();
+
+                if (instr.op == JIT::BF_OPERATION::OP_JZ || instr.op == JIT::BF_OPERATION::OP_JNZ)
+                {
+                        srcIdxToCodeOffset[src_idx] = code.size();
+                        src_idx++;
+                }
+                else if (instr.op == JIT::BF_OPERATION::OP_INC ||
+                         instr.op == JIT::BF_OPERATION::OP_DEC ||
+                         instr.op == JIT::BF_OPERATION::OP_MOVE_RIGHT ||
+                         instr.op == JIT::BF_OPERATION::OP_MOVE_LEFT)
+                {
+                        for (size_t k = 0; k < instr.non_immediate_arg; ++k)
+                        {
+                                srcIdxToCodeOffset[src_idx] = code.size();
+                                src_idx++;
+                        }
+                }
+                else
+                {
+                        srcIdxToCodeOffset[src_idx] = code.size();
+                        src_idx++;
+                }
 
                 switch (instr.op)
                 {
@@ -166,16 +187,26 @@ void *JIT::emit()
                                 code.insert(code.end(), {0x80, 0x2f, static_cast<uint8_t>(instr.non_immediate_arg)});
                         break;
                 case JIT::BF_OPERATION::OP_WRITE:
-                        code.insert(code.end(), {0x50, 0x0f, 0xb6, 0x07, 0x89, 0xc7});
+                        code.insert(code.end(), {0x48, 0x83, 0xEC, 0x08, 0x0f, 0xb6, 0x07, 0x89, 0xc7});
                         code.push_back(0xe8);
                         code.insert(code.end(), {0x00, 0x00, 0x00, 0x00});
-                        jumpPatches.push_back({code.size() - 4, reinterpret_cast<size_t>(putchar_addr), 4});
-                        code.insert(code.end(), {0x58});
+                        {
+                                intptr_t base = reinterpret_cast<intptr_t>(code.data());
+                                intptr_t target = reinterpret_cast<intptr_t>(putchar_addr);
+                                int32_t rel = static_cast<int32_t>(target - (base + code.size()));
+                                std::memcpy(code.data() + code.size() - 4, &rel, 4);
+                        }
+                        code.insert(code.end(), {0x48, 0x83, 0xC4, 0x08, 0x31, 0xc0});
                         break;
                 case JIT::BF_OPERATION::OP_READ:
                         code.push_back(0xe8);
                         code.insert(code.end(), {0x00, 0x00, 0x00, 0x00});
-                        jumpPatches.push_back({code.size() - 4, reinterpret_cast<size_t>(getchar_addr), 4});
+                        {
+                                intptr_t base = reinterpret_cast<intptr_t>(code.data());
+                                intptr_t target = reinterpret_cast<intptr_t>(getchar_addr);
+                                int32_t rel = static_cast<int32_t>(target - (base + code.size()));
+                                std::memcpy(code.data() + code.size() - 4, &rel, 4);
+                        }
                         code.insert(code.end(), {0x88, 0x07});
                         break;
                 case JIT::BF_OPERATION::OP_JZ:
@@ -183,7 +214,6 @@ void *JIT::emit()
                         code.insert(code.end(), {0x80, 0x3f, 0x00});
                         code.push_back(instr.op == JIT::BF_OPERATION::OP_JZ ? 0x74 : 0x75);
                         code.push_back(0x00);
-                        jumpPatches.push_back({ir_idx, instr.non_immediate_arg, 1});
                         break;
                 }
         }
@@ -198,31 +228,40 @@ void *JIT::emit()
 
         std::memcpy(exec, code.data(), code.size());
 
-        for (auto &patch : jumpPatches)
+        uint8_t *exec_bytes = static_cast<uint8_t *>(exec);
+        for (size_t ir_idx = 0; ir_idx < ir.size(); ++ir_idx)
         {
-                size_t patch_offset = std::get<0>(patch);
-                size_t target = std::get<1>(patch);
-                size_t patch_size = std::get<2>(patch);
-
-                if (patch_size == 4)
+                auto &instr = ir[ir_idx];
+                if (instr.op == JIT::BF_OPERATION::OP_JZ || instr.op == JIT::BF_OPERATION::OP_JNZ)
                 {
-                        intptr_t base_addr = reinterpret_cast<intptr_t>(exec);
-                        intptr_t target_addr = static_cast<intptr_t>(target);
-                        int32_t rel = static_cast<int32_t>(target_addr - (base_addr + static_cast<intptr_t>(patch_offset) + 4));
-                        uint8_t *patch_ptr = static_cast<uint8_t *>(exec) + patch_offset;
-                        std::memcpy(patch_ptr, &rel, sizeof(int32_t));
-                }
-                else if (patch_size == 1)
-                {
-                        auto it = irIdxToCodeOffset.find(target);
-                        if (it != irIdxToCodeOffset.end())
+                        size_t target_src_idx = instr.non_immediate_arg;
+                        auto it = srcIdxToCodeOffset.find(target_src_idx);
+                        if (it != srcIdxToCodeOffset.end())
                         {
                                 size_t target_code_off = it->second;
-                                int32_t disp = static_cast<int32_t>(static_cast<int32_t>(target_code_off) - static_cast<int32_t>(patch_offset + 2));
+                                size_t jump_instr_off = 0;
+                                size_t count = 0;
+                                for (size_t i = 0; i <= ir_idx; ++i)
+                                {
+                                        if (ir[i].op == JIT::BF_OPERATION::OP_INC ||
+                                            ir[i].op == JIT::BF_OPERATION::OP_DEC ||
+                                            ir[i].op == JIT::BF_OPERATION::OP_MOVE_RIGHT ||
+                                            ir[i].op == JIT::BF_OPERATION::OP_MOVE_LEFT)
+                                        {
+                                                count += ir[i].non_immediate_arg;
+                                        }
+                                        else
+                                        {
+                                                count++;
+                                        }
+                                        if (i == ir_idx)
+                                                break;
+                                }
+                                jump_instr_off = srcIdxToCodeOffset[count - 1] + 2;
+                                int32_t disp = static_cast<int32_t>(target_code_off) - static_cast<int32_t>(jump_instr_off);
                                 if (disp >= -128 && disp <= 127)
                                 {
-                                        uint8_t *patch_ptr = static_cast<uint8_t *>(exec) + patch_offset;
-                                        *patch_ptr = static_cast<uint8_t>(disp);
+                                        exec_bytes[jump_instr_off] = static_cast<uint8_t>(disp);
                                 }
                         }
                 }
